@@ -265,7 +265,8 @@ def enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-6, blur_kernel=(5,5))
 
 
 if __name__ == '__main__':
-    folder = "/home/emanuele/Documenti/Università/Signal /Signal_Project/MEFDatabase/source image sequences/Chinese_garden_Bartlomiej Okonek/"
+    dirname = os.path.dirname(__file__)
+    folder = os.path.join(dirname, 'MEFDatabase/source image sequences/Chinese_garden_Bartlomiej Okonek/')
     images = load_images_from_folder_distanced(folder,1)
 
     
