@@ -204,6 +204,64 @@ def exposure_compensation_fusion(images):
     
     return ('Exposure Compensation',fused_image)
 
+def enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-6, blur_kernel=(5,5)):
+    """
+    Fuse images using an enhanced exposure fusion approach with weight smoothing.
+    This method computes weight maps based on three factors:
+      - Contrast (using Laplacian of the grayscale image)
+      - Saturation (standard deviation across RGB channels)
+      - Well-exposedness (Gaussian function centered at 0.5)
+    A Gaussian blur is applied to weight maps to reduce artifacts (such as black spots).
+    
+    Parameters:
+        images (list of numpy.ndarray): Input images in the 0-255 range.
+        sigma (float): Parameter for the well-exposedness weight.
+        epsilon (float): Small constant to avoid division by zero.
+        blur_kernel (tuple): Kernel size for Gaussian blur applied on weight maps.
+    
+    Returns:
+        tuple: (title, fused_image) where fused_image is the final fused image.
+    """
+    # Normalize images to [0, 1]
+    imgs = [img.astype(np.float32) / 255.0 for img in images]
+    
+    weight_maps = []
+    for img in imgs:
+        # Contrast weight: absolute Laplacian of the grayscale image
+        gray = cv2.cvtColor((img * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        contrast = np.abs(cv2.Laplacian(gray, cv2.CV_32F))
+        
+        # Saturation weight: standard deviation across color channels
+        saturation = np.std(img, axis=2)
+        
+        # Well-exposedness weight: Gaussian function per channel
+        well_exposedness = np.exp(-0.5 * ((img - 0.5) / sigma) ** 2)
+        # Combine well-exposedness across channels by taking the product
+        well_exposedness = np.prod(well_exposedness, axis=2)
+        
+        # Combine weights, adding a small constant to avoid zeros
+        weight = (contrast + epsilon) * (saturation + epsilon) * (well_exposedness + epsilon)
+        # Smooth the weight map to reduce abrupt transitions (black spots)
+        weight = cv2.GaussianBlur(weight, blur_kernel, 0)
+        weight_maps.append(weight)
+    
+    # Normalize the weight maps so that they sum to 1 at each pixel
+    weight_sum = np.sum(np.array(weight_maps), axis=0) + epsilon
+    normalized_weights = [w / weight_sum for w in weight_maps]
+    
+    # Fuse the images using the normalized weight maps
+    fused = np.zeros_like(imgs[0])
+    for img, w in zip(imgs, normalized_weights):
+        # Expand weight map to 3 channels for multiplication
+        w3 = np.repeat(w[:, :, np.newaxis], 3, axis=2)
+        fused += img * w3
+
+    # Convert back to uint8 in the range [0, 255]
+    fused_image = np.clip(fused * 255, 0, 255).astype(np.uint8)
+    
+    return ("Enhanced Exposure Fusion (Smoothed Weights)", fused_image)
+
+
 
 
 if __name__ == '__main__':
@@ -212,12 +270,15 @@ if __name__ == '__main__':
 
     
     # Apply fusion techniques
-    fused_avg = average_fusion(images)
-    fused_mertens = mertens_fusion(images)
-    fused_laplacian = laplacian_pyramid_fusion(images, levels=6)
-    fused_exposure_compensation = exposure_compensation_fusion(images)
-    fused_exposure_fusion = exposure_fusion(images)
-    res = [fused_avg,fused_mertens,fused_laplacian, fused_exposure_compensation, fused_exposure_fusion]
+    res = [
+        average_fusion(images),
+        mertens_fusion(images),
+        laplacian_pyramid_fusion(images, levels=6),
+        exposure_compensation_fusion(images),
+        exposure_fusion(images),
+        enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(5,5))
+    ];
+    
     
     # Display the results for comparison
     show_results(images, res)
