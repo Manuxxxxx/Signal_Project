@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import pywt
+import textwrap
 
 def load_images(image_paths):
     """Load images and convert them from BGR to RGB for display."""
@@ -115,23 +116,54 @@ def exposure_fusion(images):
 
     return ("Exposure Fusion",fused_image)
 
-def show_results(input_images, results):
-    """Display the input images and the fused results side-by-side."""
-    n = len(input_images)
-    plt.figure(figsize=(16, 10))
+def show_results(input_images, results, images_per_row=3, figsize=(16, 10)):
+    """
+    Display the input images and the fused results in a flexible grid layout,
+    with a clear division between input images and fused results.
 
-    # Show input images on the first row
-    for i, img in enumerate(input_images):
-        plt.subplot(2, n, i + 1)
-        plt.imshow(img)
-        plt.title(f'Input {i+1}')
-        plt.axis('off')
+    Parameters:
+        input_images (list of np.ndarray): List of input images to display.
+        results (list of tuple): List of tuples, each containing a title (str) and a fused image (np.ndarray).
+        images_per_row (int): Number of images to display per row.
+        figsize (tuple): Size of the entire figure (width, height).
+    """
+    # Number of input and result images
+    num_inputs = len(input_images)
+    num_results = len(results)
     
+    # Calculate the number of rows needed for inputs and results
+    input_rows = (num_inputs + images_per_row - 1) // images_per_row
+    result_rows = (num_results + images_per_row - 1) // images_per_row
+    
+    # Create the figure and axes
+    fig, axes = plt.subplots(input_rows + result_rows, images_per_row, figsize=figsize)
+    axes = axes.flatten()  # Flatten to easily iterate over all axes
+    
+    # Plot input images
+    for i, img in enumerate(input_images):
+        ax = axes[i]
+        ax.imshow(img)
+        ax.set_title(f'Input {i + 1}')
+        ax.axis('off')
+    
+    # Plot fused results
     for j, (title, fused_img) in enumerate(results):
-        plt.subplot(2, len(results), len(results) + j + 1)
-        plt.imshow(fused_img)
-        plt.title(title)
-        plt.axis('off')
+        ax = axes[num_inputs + j]
+        ax.imshow(fused_img)
+        #add text wrap to title
+        ax.set_title("\n".join(textwrap.wrap(title, 30)))
+        ax.axis('off')
+    
+    # Hide any remaining empty subplots
+    for k in range(num_inputs + num_results, len(axes)):
+        axes[k].axis('off')
+    
+    # Add a horizontal line to separate input images from fused results
+    if num_results > 0:
+        # Calculate the y-coordinate for the horizontal line
+        # This is the normalized coordinate in figure space
+        y_sep = 1 - (input_rows / (input_rows + result_rows))
+        fig.add_artist(plt.Line2D([0, 1], [y_sep, y_sep], color='black', linewidth=2, transform=fig.transFigure, clip_on=False))
     
     plt.tight_layout()
     plt.show()
@@ -474,12 +506,12 @@ if __name__ == '__main__':
     
     # Apply fusion techniques
     res = [
-        #average_fusion(images),
-        #mertens_fusion(images),
-        #laplacian_pyramid_fusion(images, levels=6),
-        #exposure_compensation_fusion(images),
-        #exposure_fusion(images),
-        #enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(5,5)),
+        average_fusion(images),
+        mertens_fusion(images),
+        laplacian_pyramid_fusion(images, levels=6),
+        exposure_compensation_fusion(images),
+        exposure_fusion(images),
+        enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(3,3)),
         #wavelet_fusion(images, wavelet='db1', level=2) #SEEMS VERY VERY HARD ON THE COMPUTER,
         domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False),
         domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=True)
