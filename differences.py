@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import pywt
 
 def load_images(image_paths):
     """Load images and convert them from BGR to RGB for display."""
@@ -83,7 +84,6 @@ def laplacian_pyramid_fusion(images, levels=4):
         fused_image = fused_image + fused_pyramid[i-1]
 
     return (('Laplacian Pyramid - levels:'+str(levels)),np.clip(fused_image, 0, 255).astype(np.uint8))
-
 
 def exposure_fusion(images):
     # Convert images to float32 for processing
@@ -167,7 +167,6 @@ def load_images_from_folder_distanced(folder, distance):
         if img is not None:
             images.append(img)
     return images
-
 
 def exposure_compensation_fusion(images):
     """
@@ -261,7 +260,210 @@ def enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-6, blur_kernel=(5,5))
     
     return ("Enhanced Exposure Fusion (Smoothed Weights)", fused_image)
 
+def domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False):
+    """
+    Fuse images using Domain Transform filtering to refine weight maps.
+    
+    This method computes weight maps based on:
+      - Contrast (via the absolute Laplacian on a grayscale image)
+      - Saturation (standard deviation across color channels)
+      - Well-exposedness (Gaussian function centered at 0.5)
+      
+    The computed weight maps are then smoothed using the Domain Transform filter
+    (cv2.ximgproc.dtFilter) for improved edge-preservation before fusing the images.
+    
+    Parameters:
+        images (list of numpy.ndarray): Input images in 0-255 range.
+        sigmaSpatial (float): Spatial standard deviation for the domain transform filter.
+        sigmaColor (float): Color standard deviation for the domain transform filter.
+        epsilon (float): Small constant to avoid division by zero.
+    
+    Returns:
+        tuple: (title, fused_image) where fused_image is the final fused result.
+    """
+    # Normalize images to [0, 1]
+    imgs = [img.astype(np.float32) / 255.0 for img in images]
+    weight_maps = []
+    desc = None
+    
+    for img in imgs:
+        # Compute contrast weight: use absolute Laplacian on grayscale image
+        gray = cv2.cvtColor((img * 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        contrast = np.abs(cv2.Laplacian(gray, cv2.CV_32F))
+        
+        # Compute saturation weight: standard deviation across color channels
+        saturation = np.std(img, axis=2)
+        
+        # Compute well-exposedness weight: product of Gaussian responses for each channel
+        well_exposedness = np.exp(-0.5 * ((img - 0.5) / 0.2) ** 2)
+        well_exposedness = np.prod(well_exposedness, axis=2)
+        
+        # Combine the weights with a small epsilon to avoid zeros
+        weight = (contrast + epsilon) * (saturation + epsilon) * (well_exposedness + epsilon)
+        
+        # Smooth the weight map using Domain Transform filtering.
+        # The guide image can be the original color image.
+        # Mode 1 (DTF_RF) applies recursive filtering.
+        if(homebrew_dt):
+            desc = "Simple Domain Transform"
+            guidance = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+            weight_map = np.random.rand(guidance.shape[0], guidance.shape[1]).astype(np.float32)
+            smooth_weight = dt_filter(guidance, weight_map, sigmaSpatial, sigmaColor, num_iterations=3)
+        else:
+            desc ="OpenCV Domain Transform"
+            smooth_weight = cv2.ximgproc.dtFilter(img, weight.astype(np.float32), sigmaSpatial, sigmaColor, mode=1)
+        
+        weight_maps.append(smooth_weight)
+    
+    # Normalize the weight maps so that they sum to 1 at every pixel
+    weight_sum = np.sum(np.array(weight_maps), axis=0) + epsilon
+    normalized_weights = [w / weight_sum for w in weight_maps]
+    
+    # Fuse the images using the normalized weight maps
+    fused = np.zeros_like(imgs[0])
+    for img, w in zip(imgs, normalized_weights):
+        # Expand weight map to three channels for element-wise multiplication
+        w3 = np.repeat(w[:, :, np.newaxis], 3, axis=2)
+        fused += img * w3
 
+    # Convert back to 0-255 range and uint8
+    fused_image = np.clip(fused * 255, 0, 255).astype(np.uint8)
+    
+    return ("Domain Transform Fusion"+" - "+desc, fused_image)
+
+def wavelet_fusion(images, wavelet='db1', level=2):
+    """
+    Fuse images using wavelet transform-based fusion.
+    
+    Steps:
+    1. Decompose each image using discrete wavelet transform.
+    2. Fuse coefficients using a chosen rule (e.g., max-abs for detail coefficients,
+       averaging for approximation coefficients).
+    3. Reconstruct the fused image using the inverse wavelet transform.
+    
+    Parameters:
+        images (list of numpy.ndarray): List of images in the 0-255 range.
+        wavelet (str): Wavelet type.
+        level (int): Decomposition level.
+        
+    Returns:
+        tuple: (title, fused_image)
+    """
+    # Convert images to float32 and normalize to [0,1]
+    imgs = [img.astype(np.float32) / 255.0 for img in images]
+    coeffs_list = []
+    # Decompose each image
+    for img in imgs:
+        coeffs = pywt.wavedec2(img, wavelet=wavelet, level=level)
+        coeffs_list.append(coeffs)
+        
+    # Fuse coefficients (assumes all images have the same decomposition structure)
+    fused_coeffs = []
+    # Fuse the approximation coefficients using average
+    fused_approx = np.mean([coeffs[0] for coeffs in coeffs_list], axis=0)
+    fused_coeffs.append(fused_approx)
+    
+    # Fuse detail coefficients for each level
+    for level_idx in range(1, level + 1):
+        fused_details = []
+        # Each level has 3 sets of detail coefficients (horizontal, vertical, diagonal)
+        for i in range(3):
+            detail_coeffs = [coeffs[level_idx][i] for coeffs in coeffs_list]
+            # Use the max-absolute rule: choose coefficient with highest absolute value
+            detail_coeffs = np.array(detail_coeffs)
+            fused_detail = detail_coeffs[np.argmax(np.abs(detail_coeffs), axis=0)]
+            fused_details.append(fused_detail)
+        fused_coeffs.append(tuple(fused_details))
+        
+    # Reconstruct the fused image
+    fused_img = pywt.waverec2(fused_coeffs, wavelet=wavelet)
+    # Clip and convert back to uint8 in the range [0,255]
+    fused_img = np.clip(fused_img, 0, 1)
+    fused_img = (fused_img * 255).astype(np.uint8)
+    
+    return ("Wavelet Fusion", fused_img)
+
+def dt_filter(guidance, src, sigmaSpatial=60, sigmaColor=0.4, num_iterations=3):
+    """
+    A naive Python implementation of the Domain Transform filter for edge-aware smoothing.
+    
+    This function applies recursive filtering along horizontal and vertical directions
+    guided by the guidance image. It computes domain transform coefficients based on
+    intensity differences (or summed color differences) and then performs forward/backward
+    passes to filter the input src image.
+    
+    Parameters:
+        guidance (np.ndarray): Guidance image as a float32 array in [0,1]. Can be single-channel
+                               or multi-channel (e.g., RGB).
+        src (np.ndarray): Input image to filter (float32, same shape as guidance or single-channel).
+        sigmaSpatial (float): Controls the spatial extent of the filter.
+        sigmaColor (float): Controls how strongly color differences affect the filtering.
+        num_iterations (int): Number of recursive iterations (more iterations approximate a Gaussian).
+    
+    Returns:
+        np.ndarray: The filtered image (same shape as src).
+    """
+    H, W = guidance.shape[:2]
+
+    def compute_diff_x(g):
+        diff = np.zeros((H, W), dtype=np.float32)
+        for i in range(H):
+            for j in range(1, W):
+                if g.ndim == 3:
+                    # Sum differences over channels
+                    diff[i, j] = np.sum(np.abs(g[i, j] - g[i, j-1]))
+                else:
+                    diff[i, j] = abs(g[i, j] - g[i, j-1])
+        return diff
+
+    def compute_diff_y(g):
+        diff = np.zeros((H, W), dtype=np.float32)
+        for i in range(1, H):
+            for j in range(W):
+                if g.ndim == 3:
+                    diff[i, j] = np.sum(np.abs(g[i, j] - g[i-1, j]))
+                else:
+                    diff[i, j] = abs(g[i, j] - g[i-1, j])
+        return diff
+
+    # --- Horizontal Filtering ---
+    # Compute horizontal differences and coefficients
+    dI_dx = compute_diff_x(guidance)
+    dt_x = 1 + dI_dx / sigmaColor  # Domain transform along x
+    a_x = np.exp(- (np.sqrt(2) / sigmaSpatial) * dt_x)
+    
+    # Initialize result with src (make a copy so as not to alter original data)
+    result = src.copy()
+
+    # Apply recursive filtering horizontally (for each iteration, do a forward and backward pass)
+    for _ in range(num_iterations):
+        # Forward pass (left to right)
+        for i in range(H):
+            for j in range(1, W):
+                result[i, j] = a_x[i, j] * result[i, j-1] + (1 - a_x[i, j]) * result[i, j]
+        # Backward pass (right to left)
+        for i in range(H):
+            for j in range(W-2, -1, -1):
+                result[i, j] = a_x[i, j+1] * result[i, j+1] + (1 - a_x[i, j+1]) * result[i, j]
+    
+    # --- Vertical Filtering ---
+    # Compute vertical differences and coefficients
+    dI_dy = compute_diff_y(guidance)
+    dt_y = 1 + dI_dy / sigmaColor  # Domain transform along y
+    a_y = np.exp(- (np.sqrt(2) / sigmaSpatial) * dt_y)
+    
+    # Apply recursive filtering vertically
+    for _ in range(num_iterations):
+        # Forward pass (top to bottom)
+        for j in range(W):
+            for i in range(1, H):
+                result[i, j] = a_y[i, j] * result[i-1, j] + (1 - a_y[i, j]) * result[i, j]
+        # Backward pass (bottom to top)
+        for j in range(W):
+            for i in range(H-2, -1, -1):
+                result[i, j] = a_y[i+1, j] * result[i+1, j] + (1 - a_y[i+1, j]) * result[i, j]
+    
+    return result
 
 
 if __name__ == '__main__':
@@ -272,12 +474,15 @@ if __name__ == '__main__':
     
     # Apply fusion techniques
     res = [
-        average_fusion(images),
-        mertens_fusion(images),
-        laplacian_pyramid_fusion(images, levels=6),
-        exposure_compensation_fusion(images),
-        exposure_fusion(images),
-        enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(5,5))
+        #average_fusion(images),
+        #mertens_fusion(images),
+        #laplacian_pyramid_fusion(images, levels=6),
+        #exposure_compensation_fusion(images),
+        #exposure_fusion(images),
+        #enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(5,5)),
+        #wavelet_fusion(images, wavelet='db1', level=2) #SEEMS VERY VERY HARD ON THE COMPUTER,
+        domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False),
+        domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=True)
     ];
     
     
