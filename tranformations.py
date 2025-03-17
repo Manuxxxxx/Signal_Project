@@ -194,7 +194,7 @@ def enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-6, blur_kernel=(5,5))
     
     return ("Enhanced Exposure Fusion (Smoothed Weights)", fused_image)
 
-def domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False):
+def domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False, homebrew_iteration=3):
     """
     Fuse images using Domain Transform filtering to refine weight maps.
     
@@ -241,8 +241,7 @@ def domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-
         if(homebrew_dt):
             desc = "Simple Domain Transform"
             guidance = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-            weight_map = np.random.rand(guidance.shape[0], guidance.shape[1]).astype(np.float32)
-            smooth_weight = dt_filter(guidance, weight_map, sigmaSpatial, sigmaColor, num_iterations=3)
+            smooth_weight = dt_filter(guidance, weight, sigmaSpatial, sigmaColor, num_iterations=homebrew_iteration)
         else:
             desc ="OpenCV Domain Transform"
             smooth_weight = cv2.ximgproc.dtFilter(img, weight.astype(np.float32), sigmaSpatial, sigmaColor, mode=1)
