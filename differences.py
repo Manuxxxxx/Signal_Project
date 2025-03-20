@@ -127,13 +127,14 @@ def show_results(input_images, results, images_per_row=3, figsize=(10, 7)):
         figsize (tuple): Size of each figure (width, height).
     """
     num_inputs = len(input_images)
+    saturation_values = []
 
     for j, (title, fused_img) in enumerate(results):
         # Calculate the number of rows needed for inputs and the single result
         input_rows = (num_inputs + images_per_row - 1) // images_per_row
 
         # Create the figure and axes for this result
-        fig, axes = plt.subplots(input_rows + 1, images_per_row, figsize=figsize)
+        fig, axes = plt.subplots(input_rows + 3, images_per_row, figsize=figsize)
         axes = axes.flatten()  # Flatten to easily iterate over all axes
 
         # Plot input images
@@ -152,17 +153,40 @@ def show_results(input_images, results, images_per_row=3, figsize=(10, 7)):
         ax.set_title("\n".join(textwrap.wrap(title, 30)))
         ax.axis('off')
 
+        # Plot color histograms for the fused image
+        for c, color in enumerate(['Red', 'Green', 'Blue']):
+            hist_index = result_index + images_per_row + c
+            ax = axes[hist_index]
+            ax.hist(fused_img[:, :, c].ravel(), bins=256, color=color.lower(), alpha=0.7)
+            ax.set_title(f'{color} Channel Histogram')
+            ax.set_xlim(0, 256)
+
+        # Calculate saturation for the fused image and store it
+        hsv_img = cv2.cvtColor(fused_img, cv2.COLOR_RGB2HSV)
+        saturation = np.mean(hsv_img[:, :, 1])  # Saturation is the second channel in HSV
+        saturation_values.append(saturation)
+
         # Hide any remaining empty subplots
         for k in range(len(axes)):
-            if k >= num_inputs and k != result_index:
+            if k >= num_inputs and k != result_index and k not in [result_index + images_per_row, result_index + images_per_row + 1, result_index + images_per_row + 2]:
                 axes[k].axis('off')
 
         # Add a horizontal line to separate input images from the fused result
-        y_sep = 1 - (input_rows / (input_rows + 1))
+        y_sep = 1 - (input_rows / (input_rows + 3))
         fig.add_artist(plt.Line2D([0, 1], [y_sep, y_sep], color='black', linewidth=2, transform=fig.transFigure, clip_on=False))
 
         plt.tight_layout()
         plt.show()
+
+    # Plot saturation comparison in a separate window
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(saturation_values)), saturation_values, color='purple', alpha=0.7)
+    plt.xticks(range(len(saturation_values)), [f'Result {i+1}' for i in range(len(saturation_values))])
+    plt.title('Saturation Comparison of All Results')
+    plt.xlabel('Result')
+    plt.ylabel('Saturation')
+    plt.ylim(0, max(saturation_values) + 10)  # Adjust y-axis limit for better visualization
+    plt.show()
 
 def load_images_from_folder(folder):
     images = []
