@@ -84,3 +84,10 @@ if __name__ == '__main__':
     
     # Display the results for comparison
     show_results(images, res)
+
+    res_detail = []
+    for item in res:
+        str, img = item
+        res_detail.append((str, img[0:70, 230:375]))
+    
+    show_results(images, res_detail)
