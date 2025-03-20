@@ -116,57 +116,67 @@ def exposure_fusion(images):
 
     return ("Exposure Fusion",fused_image)
 
-def show_results(input_images, results, images_per_row=3, figsize=(16, 10)):
+def show_results(input_images, results, images_per_row=3, figsize=(10, 7)):
     """
-    Display the input images and the fused results in a flexible grid layout,
-    with a clear division between input images and fused results.
+    Display each fused result in a dedicated window, with input images shown in each window.
 
     Parameters:
         input_images (list of np.ndarray): List of input images to display.
         results (list of tuple): List of tuples, each containing a title (str) and a fused image (np.ndarray).
         images_per_row (int): Number of images to display per row.
-        figsize (tuple): Size of the entire figure (width, height).
+        figsize (tuple): Size of each figure (width, height).
     """
-    # Number of input and result images
     num_inputs = len(input_images)
-    num_results = len(results)
-    
-    # Calculate the number of rows needed for inputs and results
-    input_rows = (num_inputs + images_per_row - 1) // images_per_row
-    result_rows = (num_results + images_per_row - 1) // images_per_row
-    
-    # Create the figure and axes
-    fig, axes = plt.subplots(input_rows + result_rows, images_per_row, figsize=figsize)
-    axes = axes.flatten()  # Flatten to easily iterate over all axes
-    
-    # Plot input images
-    for i, img in enumerate(input_images):
-        ax = axes[i]
-        ax.imshow(img)
-        ax.set_title(f'Input {i + 1}')
-        ax.axis('off')
-    
-    # Plot fused results
+    contrast_values = []
+
     for j, (title, fused_img) in enumerate(results):
-        ax = axes[num_inputs + j]
+        # Calculate the number of rows needed for inputs and the single result
+        input_rows = (num_inputs + images_per_row - 1) // images_per_row
+
+        # Create the figure and axes for this result
+        fig, axes = plt.subplots(input_rows + 2, images_per_row, figsize=figsize)
+        axes = axes.flatten()  # Flatten to easily iterate over all axes
+
+        # Plot input images
+        for i, img in enumerate(input_images):
+            ax = axes[i]
+            ax.imshow(img)
+            ax.set_title(f'Input {i + 1}')
+            ax.axis('off')
+
+        # Calculate the index for the centered subplot in the bottom row
+        result_index = num_inputs
+
+        # Plot the fused result in the centered subplot of the bottom row
+        ax = axes[result_index]
         ax.imshow(fused_img)
-        #add text wrap to title
         ax.set_title("\n".join(textwrap.wrap(title, 30)))
         ax.axis('off')
-    
-    # Hide any remaining empty subplots
-    for k in range(num_inputs + num_results, len(axes)):
-        axes[k].axis('off')
-    
-    # Add a horizontal line to separate input images from fused results
-    if num_results > 0:
-        # Calculate the y-coordinate for the horizontal line
-        # This is the normalized coordinate in figure space
-        y_sep = 1 - (input_rows / (input_rows + result_rows))
+
+        # Plot color histograms for the fused image
+        hist_start_index = result_index + images_per_row
+        for c, color in enumerate(['Red', 'Green', 'Blue']):
+            hist_index = hist_start_index + c
+            ax = axes[hist_index]
+            ax.hist(fused_img[:, :, c].ravel(), bins=256, color=color.lower(), alpha=0.7)
+            ax.set_title(f'{color} Channel Histogram')
+            ax.set_xlim(0, 256)
+
+        # Calculate contrast for the fused image and store it
+        contrast = np.std(fused_img)
+        contrast_values.append(contrast)
+
+        # Hide any remaining empty subplots
+        for k in range(len(axes)):
+            if k >= num_inputs and k != result_index and k not in [hist_start_index, hist_start_index + 1, hist_start_index + 2]:
+                axes[k].axis('off')
+
+        # Add a horizontal line to separate input images from the fused result
+        y_sep = 1 - (input_rows / (input_rows + 2))
         fig.add_artist(plt.Line2D([0, 1], [y_sep, y_sep], color='black', linewidth=2, transform=fig.transFigure, clip_on=False))
-    
-    plt.tight_layout()
-    plt.show()
+
+        plt.tight_layout()
+        plt.show()
 
 def load_images_from_folder(folder):
     images = []
@@ -515,15 +525,8 @@ if __name__ == '__main__':
         #wavelet_fusion(images, wavelet='db1', level=2) #SEEMS VERY VERY HARD ON THE COMPUTER,
         domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False),
         domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=True)
-    ]
+    ];
     
     
     # Display the results for comparison
     show_results(images, res)
-
-    res_detail = []
-    for item in res:
-        str, img = item
-        res_detail.append((str, img[0:70, 230:375]))
-    
-    show_results(images, res_detail)

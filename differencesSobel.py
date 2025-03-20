@@ -116,7 +116,7 @@ def exposure_fusion(images):
 
     return ("Exposure Fusion",fused_image)
 
-def show_results(input_images, results, images_per_row=3, figsize=(16, 10)):
+def show_results(input_images, results, images_per_row=3, figsize=(16, 10), grayscale=False):
     """
     Display the input images and the fused results in a flexible grid layout,
     with a clear division between input images and fused results.
@@ -521,9 +521,16 @@ if __name__ == '__main__':
     # Display the results for comparison
     show_results(images, res)
 
-    res_detail = []
+    # Horizontal edge detection
+    res_sobel = []
     for item in res:
         str, img = item
-        res_detail.append((str, img[0:70, 230:375]))
-    
-    show_results(images, res_detail)
+        res_sobel.append((str, cv2.Sobel(cv2.cvtColor(img,cv2.COLOR_BGR2GRAY),cv2.CV_64F,0,1,ksize=9)))
+    show_results(images, res_sobel)
+
+    # Vertical edge detection
+    res_sobel = []
+    for item in res:
+        str, img = item
+        res_sobel.append((str, cv2.Sobel(cv2.cvtColor(img,cv2.COLOR_BGR2GRAY),cv2.CV_64F,1,0,ksize=9)))
+    show_results(images, res_sobel)
