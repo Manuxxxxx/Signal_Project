@@ -89,10 +89,11 @@ def exposure_fusion(images):
     exposure_weight = [np.exp(-((img - 0.5) ** 2) / (2 * 0.2 ** 2)) for img in images]
     
     # Combine weights
-    total_weight = sum(laplacian_weight) + sum(saliency_weight) + sum(exposure_weight)
-    total_weight += 1e-12  # Prevent division by zero
+    # total_weight = sum(laplacian_weight) + sum(saliency_weight) + sum(exposure_weight)
+    # total_weight += 1e-12  # Prevent division by zero
+    total_weight = [laplacian_weight[i] + saliency_weight[i] + exposure_weight[i] + 1e-12 for i in range(len(images))]
 
-    weighted_images = [(w / total_weight) * img for w, img in zip(laplacian_weight, images)]
+    weighted_images = [(w / sum(total_weight)) * img for w, img in zip(total_weight, images)]
     
     # Perform fusion
     fused_image = sum(weighted_images)
