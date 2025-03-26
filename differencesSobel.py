@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import os
 import pywt
 import textwrap
-import tranformations  
+import transformations  
 import utils
 
 def show_results(input_images, results, images_per_row=3, figsize=(16, 10), grayscale=False):
@@ -67,15 +67,15 @@ if __name__ == '__main__':
     
     # Apply fusion techniques
     res = [
-        tranformations.average_fusion(images),
-        tranformations.mertens_fusion(images),
-        tranformations.laplacian_pyramid_fusion(images, levels=6),
-        tranformations.exposure_compensation_fusion(images),
-        tranformations.exposure_fusion(images),
-        tranformations.enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(3,3)),
-        tranformations.wavelet_fusion(images, wavelet='db1', level=2),
-        tranformations.domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False),
-        tranformations.domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=True)
+        transformations.average_fusion(images),
+        transformations.mertens_fusion(images),
+        transformations.laplacian_pyramid_fusion(images, levels=6),
+        transformations.exposure_compensation_fusion(images),
+        transformations.exposure_fusion(images),
+        transformations.enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(3,3)),
+        transformations.wavelet_fusion(images, wavelet='db1', level=2),
+        transformations.domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False),
+        transformations.domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=True)
     ]
     
     

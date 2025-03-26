@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import os
-import tranformations
+import transformations
 
 if __name__ == "__main__":
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     weight = (contrast + epsilon) * (saturation + epsilon) * (well_exposedness + epsilon)
 
     # Apply our domain transform filter
-    smooth_weight = tranformations.dt_filter(guidance, weight, sigmaSpatial=60, sigmaColor=0.4, num_iterations=3)
+    smooth_weight = transformations.dt_filter_homebrew(guidance, weight, sigmaSpatial=60, sigmaColor=0.4, num_iterations=3)
 
     # Display original and smoothed weight maps
     plt.figure(figsize=(12, 5))
