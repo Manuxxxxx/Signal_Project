@@ -84,7 +84,7 @@ if __name__ == '__main__':
         tranformations.exposure_compensation_fusion(images),
         tranformations.exposure_fusion(images),
         tranformations.enhanced_exposure_fusion(images, sigma=0.2, epsilon=1e-12, blur_kernel=(3,3)),
-        #tranformations.wavelet_fusion(images, wavelet='db1', level=2) #SEEMS VERY VERY HARD ON THE COMPUTER,
+        tranformations.wavelet_fusion(images, wavelet='db1', level=2),
         tranformations.domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=False),
         tranformations.domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-6, homebrew_dt=True)
     ];

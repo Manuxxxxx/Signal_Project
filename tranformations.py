@@ -267,55 +267,72 @@ def domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-
 
 def wavelet_fusion(images, wavelet='db1', level=2):
     """
-    Fuse images using wavelet transform-based fusion.
-    
-    Steps:
-    1. Decompose each image using discrete wavelet transform.
-    2. Fuse coefficients using a chosen rule (e.g., max-abs for detail coefficients,
-       averaging for approximation coefficients).
-    3. Reconstruct the fused image using the inverse wavelet transform.
-    
+    Fuse grayscale or color (RGB) images using wavelet transform-based fusion.
+
     Parameters:
-        images (list of numpy.ndarray): List of images in the 0-255 range.
+        images (list of numpy.ndarray): List of grayscale or color images (H, W) or (H, W, 3).
         wavelet (str): Wavelet type.
         level (int): Decomposition level.
         
     Returns:
         tuple: (title, fused_image)
     """
-    # Convert images to float32 and normalize to [0,1]
-    imgs = [img.astype(np.float32) / 255.0 for img in images]
-    coeffs_list = []
-    # Decompose each image
-    for img in imgs:
-        coeffs = pywt.wavedec2(img, wavelet=wavelet, level=level)
-        coeffs_list.append(coeffs)
-        
-    # Fuse coefficients (assumes all images have the same decomposition structure)
-    fused_coeffs = []
-    # Fuse the approximation coefficients using average
-    fused_approx = np.mean([coeffs[0] for coeffs in coeffs_list], axis=0)
-    fused_coeffs.append(fused_approx)
-    
-    # Fuse detail coefficients for each level
-    for level_idx in range(1, level + 1):
-        fused_details = []
-        # Each level has 3 sets of detail coefficients (horizontal, vertical, diagonal)
-        for i in range(3):
-            detail_coeffs = [coeffs[level_idx][i] for coeffs in coeffs_list]
-            # Use the max-absolute rule: choose coefficient with highest absolute value
-            detail_coeffs = np.array(detail_coeffs)
-            fused_detail = detail_coeffs[np.argmax(np.abs(detail_coeffs), axis=0)]
-            fused_details.append(fused_detail)
-        fused_coeffs.append(tuple(fused_details))
-        
-    # Reconstruct the fused image
-    fused_img = pywt.waverec2(fused_coeffs, wavelet=wavelet)
-    # Clip and convert back to uint8 in the range [0,255]
-    fused_img = np.clip(fused_img, 0, 1)
-    fused_img = (fused_img * 255).astype(np.uint8)
-    
-    return ("Wavelet Fusion", fused_img)
+    # Check if images are color or grayscale
+    is_color = len(images[0].shape) == 3 and images[0].shape[-1] == 3
+
+    if is_color:
+        # Split RGB channels
+        images = [cv2.split(img) for img in images]
+        channels = list(zip(*images))  # Separate into R, G, B channel lists
+    else:
+        channels = [images]  # Treat grayscale as a single channel
+
+    fused_channels = []
+
+    for channel_images in channels:
+        # Convert images to float32 and normalize to [0,1]
+        imgs = [img.astype(np.float32) / 255.0 for img in channel_images]
+
+        coeffs_list = [pywt.wavedec2(img, wavelet=wavelet, level=level) for img in imgs]
+
+        # Fuse coefficients
+        fused_coeffs = []
+
+        # Fuse approximation coefficients using the mean
+        fused_approx = np.mean([coeffs[0] for coeffs in coeffs_list], axis=0)
+        fused_coeffs.append(fused_approx)
+
+        # Fuse detail coefficients for each level
+        for lvl in range(1, level + 1):
+            fused_details = []
+            for i in range(3):  # Horizontal, vertical, diagonal details
+                detail_coeffs = np.array([coeffs[lvl][i] for coeffs in coeffs_list])
+                # Use max-absolute rule: choose coefficient with highest absolute value
+                fused_detail = np.choose(np.argmax(np.abs(detail_coeffs), axis=0), detail_coeffs)
+                fused_details.append(fused_detail)
+            fused_coeffs.append(tuple(fused_details))
+
+        # Reconstruct the fused image
+        fused_img = pywt.waverec2(fused_coeffs, wavelet=wavelet)
+
+        # Ensure the output image has the same size as the original
+        h, w = channel_images[0].shape
+        fused_img = fused_img[:h, :w]
+
+        # Clip and convert back to uint8 in the range [0,255]
+        fused_img = np.clip(fused_img, 0, 1)
+        fused_img = (fused_img * 255).astype(np.uint8)
+
+        fused_channels.append(fused_img)
+
+    # Merge channels back for color images
+    if is_color:
+        fused_img = cv2.merge(fused_channels)
+    else:
+        fused_img = fused_channels[0]  # Grayscale case
+
+    return "Wavelet Fusion", fused_img
+
 
 def dt_filter(guidance, src, sigmaSpatial=60, sigmaColor=0.4, num_iterations=3):
     """
