@@ -334,7 +334,7 @@ def wavelet_fusion(images, wavelet='db1', level=2):
     return "Wavelet Fusion", fused_img
 
 
-def dt_filter(guidance, src, sigmaSpatial=60, sigmaColor=0.4, num_iterations=3):
+def dt_filter_homebrew(guidance, src, sigmaSpatial=60, sigmaColor=0.4, num_iterations=3):
     """
     A naive Python implementation of the Domain Transform filter for edge-aware smoothing.
     
