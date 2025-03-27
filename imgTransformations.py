@@ -242,7 +242,7 @@ def domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-
         if(homebrew_dt):
             desc = "Simple Domain Transform"
             guidance = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-            smooth_weight = dt_filter(guidance, weight, sigmaSpatial, sigmaColor, num_iterations=homebrew_iteration)
+            smooth_weight = dt_filter_homebrew(guidance, weight, sigmaSpatial, sigmaColor, num_iterations=homebrew_iteration)
         else:
             desc ="OpenCV Domain Transform"
             smooth_weight = cv2.ximgproc.dtFilter(img, weight.astype(np.float32), sigmaSpatial, sigmaColor, mode=1)
