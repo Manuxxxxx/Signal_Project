@@ -77,18 +77,18 @@ def interactive_image_selector(folder, images_list):
 
     display(selectionWidget)
 
-def plotColourChannels(image):
+def plotColourChannels(ax, image):
     r, b, g = cv2.split(image)
     hist_b = cv2.calcHist([b], [0], None, [256], [0, 256])
     hist_g = cv2.calcHist([g], [0], None, [256], [0, 256])
     hist_r = cv2.calcHist([r], [0], None, [256], [0, 256])
-    plt.plot(hist_r, color="red", label="Red Channel")
-    plt.plot(hist_g, color="green", label="Green Channel")
-    plt.plot(hist_b, color="blue", label="Blue Channel")
-    plt.title("RGB Histograms")
-    plt.xlabel("Pixel Intensity")
-    plt.ylabel("Frequency")
-    plt.legend()
+    ax.plot(hist_r, color="red", label="Red Channel")
+    ax.plot(hist_g, color="green", label="Green Channel")
+    ax.plot(hist_b, color="blue", label="Blue Channel")
+    ax.set_title("RGB Histograms")
+    ax.set_xlabel("Pixel Intensity")
+    ax.set_ylabel("Frequency")
+    ax.legend()
 
 def interactive_fusion(images,fusion_method, *args, **kwargs):
     """
@@ -107,156 +107,146 @@ def interactive_fusion(images,fusion_method, *args, **kwargs):
         title = f"{title} ({extra_info})"
 
     # Plotting
-    plt.figure(figsize=(16, 6))
-    plt.subplot(1, 2, 1)
-    plt.imshow(fused)
-    plt.title(title)
-    plt.axis("off")
-    plt.subplot(1, 2, 2)
-    plotColourChannels(fused)
-    plt.show()
+    fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+    axes[0].imshow(fused)
+    axes[0].set_title(title)
+    axes[0].axis("off")
+
+    # Plot RGB histograms
+    plotColourChannels(axes[1], fused)
 
 def showcase_methods_tab(images, methods):
+    # Create a persistent output container for all methods
+    global_output = Output()
+    
     # --------------------------
     # Create interactive widgets
     # --------------------------
-
     epsilon_values = np.round(np.logspace(-7, -5, num=10), decimals=10)
-
-    # Ensure the default value is in the list
     default_epsilon = 1e-6
     if default_epsilon not in epsilon_values:
         epsilon_values = np.append(epsilon_values, default_epsilon)
-        epsilon_values = np.sort(epsilon_values)  # Keep sorted order
+        epsilon_values = np.sort(epsilon_values)
 
-    laplacian_widget = interactive(
-        lambda levels: interactive_fusion(
-            images,methods['Laplacian Pyramid'],
-            levels=levels
-        ),
-        levels=IntSlider(min=1, max=10, step=1, value=4, description="Levels:"),
-    )
+    # Common update function for all interactive methods
+    def run_interactive(method, **kwargs):
+        with global_output:
+            global_output.clear_output(wait=True)
+            try:
+                title, fused = method(images, **kwargs)
+                
+                # Generate parameter info
+                param_info = ", ".join(f"{k}: {v}" for k, v in kwargs.items())
+                full_title = f"{title} ({param_info})" if param_info else title
+                
+                # Create plot within output context
+                fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+                axes[0].imshow(fused)
+                axes[0].set_title(full_title)
+                axes[0].axis("off")
+                plotColourChannels(axes[1], fused)
+                plt.show()
+                
+            except Exception as e:
+                print(f"Error: {str(e)}")
 
-    enhanced_widget = interactive(
-        lambda sigma, epsilon, kernel_dim: interactive_fusion(
-            images,
-            methods['Enhanced Exposure'],
-            sigma=sigma,
-            epsilon=epsilon,
-            blur_kernel=(kernel_dim, kernel_dim),
-        ),
-        sigma=FloatSlider(min=0.1, max=1.0, step=0.05, value=0.2, description="Sigma:"),
-        epsilon=SelectionSlider(
-            options=[(f"{e:.1e}", e) for e in epsilon_values],
-            value=default_epsilon,
-            description="Epsilon:",
-        ),
-        kernel_dim=IntSlider(
-            min=1, max=9, step=2, value=3, description="Kernel dimension:"
-        ),
-    )
+    # Laplacian Pyramid Widget
+    levels_slider = IntSlider(min=1, max=10, step=1, value=4, description="Levels:")
+    laplacian_box = VBox([
+        Label("Laplacian Pyramid Fusion:"),
+        levels_slider
+    ])
+    
+    def update_laplacian(change):
+        run_interactive(methods['Laplacian Pyramid'], levels=change['new'])
+    levels_slider.observe(update_laplacian, names='value')
 
-    domain_widget = interactive(
-        lambda sigmaSpatial, sigmaColor, epsilon: interactive_fusion(
-            images,
-            methods['Domain Transform'],
-            sigmaSpatial=sigmaSpatial,
-            sigmaColor=sigmaColor,
-            epsilon=epsilon,
-            homebrew_dt=False,
-        ),
-        sigmaSpatial=FloatSlider(
-            min=10, max=100, step=5, value=60, description="sigmaSpatial:"
-        ),
-        sigmaColor=FloatSlider(
-            min=0.1, max=1.0, step=0.05, value=0.4, description="sigmaColor:"
-        ),
-        epsilon=SelectionSlider(
-            options=[(f"{e:.1e}", e) for e in epsilon_values],
-            value=default_epsilon,
-            description="Epsilon:",
-        ),
+    # Enhanced Exposure Widget
+    sigma_slider = FloatSlider(min=0.1, max=1.0, step=0.05, value=0.2, description="Sigma:")
+    epsilon_slider = SelectionSlider(
+        options=[(f"{e:.1e}", e) for e in epsilon_values],
+        value=default_epsilon,
+        description="Epsilon:"
     )
-    wavelet_widget = interactive(
-        lambda level: interactive_fusion(
-            images,
-            methods['Wavelet Fusion'],
-            wavelet="db1",
-            level=level
-        ),
-        level=IntSlider(min=1, max=5, step=1, value=2, description="Level:"),
-    )
+    kernel_slider = IntSlider(min=1, max=9, step=2, value=3, description="Kernel dim:")
+    enhanced_box = VBox([
+        Label("Enhanced Exposure Fusion:"),
+        sigma_slider,
+        epsilon_slider,
+        kernel_slider
+    ])
+    
+    def update_enhanced(change):
+        run_interactive(methods['Enhanced Exposure'],
+                        sigma=sigma_slider.value,
+                        epsilon=epsilon_slider.value,
+                        blur_kernel=(kernel_slider.value, kernel_slider.value))
+    
+    for slider in [sigma_slider, epsilon_slider, kernel_slider]:
+        slider.observe(update_enhanced, names='value')
 
-    # For functions without adjustable numeric parameters, use buttons.
-    avg_button = Button(description="Run Average Fusion")
-    mertens_button = Button(description="Run Mertens Fusion")
-    exposure_button = Button(description="Run Exposure Fusion")
-    exp_comp_button = Button(description="Run Exposure Compensation Fusion")
+    # Domain Transform Widget
+    sigma_spatial = FloatSlider(min=10, max=100, step=5, value=60, description="sigmaSpatial:")
+    sigma_color = FloatSlider(min=0.1, max=1.0, step=0.05, value=0.4, description="sigmaColor:")
+    epsilon_dt = SelectionSlider(
+        options=[(f"{e:.1e}", e) for e in epsilon_values],
+        value=default_epsilon,
+        description="Epsilon:"
+    )
+    domain_box = VBox([
+        Label("Domain Transform Fusion:"),
+        sigma_spatial,
+        sigma_color,
+        epsilon_dt
+    ])
+    
+    def update_domain(change):
+        run_interactive(methods['Domain Transform'],
+                        sigmaSpatial=sigma_spatial.value,
+                        sigmaColor=sigma_color.value,
+                        epsilon=epsilon_dt.value)
+    
+    for slider in [sigma_spatial, sigma_color, epsilon_dt]:
+        slider.observe(update_domain, names='value')
 
-    out_avg = Output()
-    out_mertens = Output()
-    out_exposure = Output()
-    out_exp_comp = Output()
+    # Wavelet Fusion Widget
+    level_slider = IntSlider(min=1, max=5, step=1, value=2, description="Level:")
+    wavelet_box = VBox([
+        Label("Wavelet Fusion:"),
+        level_slider
+    ])
+    
+    def update_wavelet(change):
+        run_interactive(methods['Wavelet Fusion'], level=change['new'])
+    level_slider.observe(update_wavelet, names='value')
 
-    def run_fusion(method, output):
-        with output:
-            output.clear_output(wait=True)
-            interactive_fusion(images=images,fusion_method=method)
+    # Button-based methods
+    def create_button(method_name):
+        btn = Button(description=f"Run {method_name}")
+        def on_click(b):
+            run_interactive(methods[method_name])
+        btn.on_click(on_click)
+        return btn
 
-    avg_button.on_click(
-        lambda b: run_fusion(
-            methods['Average Fusion'],
-            out_avg
-        )
-    )
-    mertens_button.on_click(
-        lambda b: run_fusion(
-            methods['Mertens Fusion'],
-            out_mertens
-        )
-    )
-    exposure_button.on_click(
-        lambda b: run_fusion(
-            methods['Exposure Fusion'],
-            out_exposure
-        )
-    )
-    exp_comp_button.on_click(
-        lambda b: run_fusion(
-            methods['Exposure Compensation'],
-            out_exp_comp
-        )
-    )
+    avg_button = create_button('Average Fusion')
+    mertens_button = create_button('Mertens Fusion')
+    exposure_button = create_button('Exposure Fusion')
+    exp_comp_button = create_button('Exposure Compensation')
 
     # --------------------------
-    # Layout the widgets in a Tabbed interface
+    # Tabbed interface layout
     # --------------------------
-    tab = Tab(
-        children=[
-            VBox([Label("Average Fusion (no parameters):"), avg_button, out_avg]),
-            VBox(
-                [Label("Mertens Fusion (no parameters):"), mertens_button, out_mertens]
-            ),
-            VBox([Label("Laplacian Pyramid Fusion:"), laplacian_widget]),
-            VBox(
-                [
-                    Label("Exposure Fusion (no parameters):"),
-                    exposure_button,
-                    out_exposure,
-                ]
-            ),
-            VBox(
-                [
-                    Label("Exposure Compensation Fusion (no parameters):"),
-                    exp_comp_button,
-                    out_exp_comp,
-                ]
-            ),
-            VBox([Label("Enhanced Exposure Fusion:"), enhanced_widget]),
-            VBox([Label("Domain Transform Fusion:"), domain_widget]),
-            VBox([Label("Wavelet Fusion:"), wavelet_widget]),
-        ]
-    )
+    tab = Tab(children=[
+        VBox([Label("Average Fusion:"), avg_button]),
+        VBox([Label("Mertens Fusion:"), mertens_button]),
+        laplacian_box,
+        VBox([Label("Exposure Fusion:"), exposure_button]),
+        VBox([Label("Exposure Compensation:"), exp_comp_button]),
+        enhanced_box,
+        domain_box,
+        wavelet_box
+    ])
+    
     tab.set_title(0, "Average")
     tab.set_title(1, "Mertens")
     tab.set_title(2, "Laplacian")
@@ -266,7 +256,13 @@ def showcase_methods_tab(images, methods):
     tab.set_title(6, "Domain Trans.")
     tab.set_title(7, "Wavelet")
 
-    display(tab)
+    # Combine tabs and output in single layout
+    main_layout = VBox([
+        tab,
+        global_output
+    ])
+    
+    display(main_layout)
 
 def showcase_weight_maps_tab(images, calculate_weight_maps):
     out = Output()
@@ -441,17 +437,28 @@ def compare_methods_and_metrics(spatial_frequency, calculate_entropy, calculate_
 
 
 def show_images(image1, image2, title1="Image 1", title2="Image 2"):
-    """Display two images side by side."""
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    axes[0].imshow(image1)
-    axes[0].set_title(title1)
-    axes[0].axis("off")
+    """Display two images with their RGB histograms in a 2x2 grid."""
+    import matplotlib.pyplot as plt
+    import cv2
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+    # Top row: display images
+    axes[0, 0].imshow(image1)
+    axes[0, 0].set_title(title1)
+    axes[0, 0].axis("off")
     
-    axes[1].imshow(image2)
-    axes[1].set_title(title2)
-    axes[1].axis("off")
+    axes[0, 1].imshow(image2)
+    axes[0, 1].set_title(title2)
+    axes[0, 1].axis("off")
+
+
+    plotColourChannels(axes[1, 0], image1)
+    plotColourChannels(axes[1, 1], image2)
     
+    plt.tight_layout()
     plt.show()
+
 
 def compare_methods_display(images, compute_difference, show_heatmap, methods):
     method_selector1 = widgets.Dropdown(options=methods.keys(), description="Method 1")
@@ -481,10 +488,11 @@ def compare_methods_display(images, compute_difference, show_heatmap, methods):
 
             # Display the fused images
             show_images(img1, img2, name1, name2)
-            
+
             # Compute and display the heatmap difference
             diff = compute_difference(img1, img2)
             show_heatmap(diff)
+            
 
     # Display the widgets (dropdowns and button)
     display(method_selector1, method_selector2)

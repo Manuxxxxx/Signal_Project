@@ -241,7 +241,7 @@ def domain_transform_fusion(images, sigmaSpatial=60, sigmaColor=0.4, epsilon=1e-
         # Mode 1 (DTF_RF) applies recursive filtering.
         if(homebrew_dt):
             desc = "Simple Domain Transform"
-            guidance = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+            guidance = img.astype(np.float32) / 255.0
             smooth_weight = dt_filter_homebrew(guidance, weight, sigmaSpatial, sigmaColor, num_iterations=homebrew_iteration)
         else:
             desc ="OpenCV Domain Transform"
