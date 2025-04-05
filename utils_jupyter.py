@@ -20,6 +20,14 @@ import numpy as np
 import pandas as pd
 from IPython.display import clear_output
 
+def imageCheck(images):
+    if not images:
+        raise ValueError("Image list is empty")
+    
+    h, w, c = images[0].shape
+    for img in images:
+        if img.shape != (h, w, c):
+            raise ValueError("All images must have the same dimensions and channels")
 
 def interactive_image_selector(folder, images_list):
     # Remove the global declaration
