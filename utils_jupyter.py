@@ -246,23 +246,23 @@ def showcase_methods_tab(images, methods):
     # --------------------------
     tab = Tab(children=[
         VBox([Label("Average Fusion:"), avg_button]),
-        VBox([Label("Mertens Fusion:"), mertens_button]),
         laplacian_box,
-        VBox([Label("Exposure Fusion:"), exposure_button]),
-        VBox([Label("Exposure Compensation:"), exp_comp_button]),
-        enhanced_box,
+        wavelet_box,
         domain_box,
-        wavelet_box
+        VBox([Label("Exposure Compensation:"), exp_comp_button]),
+        VBox([Label("Exposure Fusion:"), exposure_button]),
+        enhanced_box,
+        VBox([Label("Mertens Fusion:"), mertens_button]),
     ])
     
     tab.set_title(0, "Average")
-    tab.set_title(1, "Mertens")
-    tab.set_title(2, "Laplacian")
-    tab.set_title(3, "Exposure")
+    tab.set_title(1, "Laplacian")
+    tab.set_title(2, "Wavelet")
+    tab.set_title(3, "Domain Trans.")
     tab.set_title(4, "Exp. Comp.")
-    tab.set_title(5, "Enhanced")
-    tab.set_title(6, "Domain Trans.")
-    tab.set_title(7, "Wavelet")
+    tab.set_title(5, "Exposure")
+    tab.set_title(6, "Enhanced")
+    tab.set_title(7, "Mertens")
 
     # Combine tabs and output in single layout
     main_layout = VBox([
