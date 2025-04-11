@@ -1,8 +1,13 @@
-# Signal_Project
+# Signal, Image and Video Project - Multi-Exposure Fusion (MEF) - Ricca & Gandolfi
 
+## Overview
+This project focuses on **Multi-Exposure Fusion (MEF)** — a technique used to combine multiple images with different exposure levels into a single, well-exposed image.  
+We compare various MEF methods, explore multiple implementations, and analyze the quality of the resulting fused images.
 
-## How to use virtual env:
+## Installation
 
-### Instead of "python name.py" use ".venv/bin/python name.py" for run programs
-### In the same fashion use ".venv/bin/pip" instead of "pip"
-### On linux you can source the file ".venv/bin/activate" to enter directly the ambient from the console
+Make sure to install the required dependencies:
+
+```bash
+pip install -r requirements.txt
+```
