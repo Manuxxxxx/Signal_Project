@@ -247,8 +247,8 @@ def showcase_methods_tab(images, methods):
     tab = Tab(children=[
         VBox([Label("Average Fusion:"), avg_button]),
         laplacian_box,
-        wavelet_box,
         domain_box,
+        wavelet_box,
         VBox([Label("Exposure Compensation:"), exp_comp_button]),
         VBox([Label("Exposure Fusion:"), exposure_button]),
         enhanced_box,
@@ -257,8 +257,8 @@ def showcase_methods_tab(images, methods):
     
     tab.set_title(0, "Average")
     tab.set_title(1, "Laplacian")
-    tab.set_title(2, "Wavelet")
-    tab.set_title(3, "Domain Trans.")
+    tab.set_title(2, "Domain Trans.")
+    tab.set_title(3, "Wavelet")
     tab.set_title(4, "Exp. Comp.")
     tab.set_title(5, "Exposure")
     tab.set_title(6, "Enhanced")
